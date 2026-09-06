@@ -1,0 +1,52 @@
+# Builds and publishes the two images this stack owns to GHCR.
+#
+# MANUAL ONLY. Nothing is built or pushed until someone presses "Run
+# workflow" in the Actions tab; a push to this repository never publishes on
+# its own. The first run creates each package PRIVATE (it inherits the
+# repository's visibility); flipping a package to public is done in that
+# package's settings and is independent of the repository staying private.
+name: Publish images
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish alongside the commit sha"
+        default: latest
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: annas-archive-api
+            # Vendored from upstream; the label lets anyone read the source
+            # even while this repository is private.
+            description: "annas-archive-api, vendored from github.com/bitesized/annas-archive-api @ 4b3e1d3 (see VENDORED.md)"
+          - image: shelfmark-ai-relay
+            description: "Match-suggestion relay for shelfmark.koplugin"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.image }}
+          push: true
+          tags: |
+            ghcr.io/thefactor1/${{ matrix.image }}:${{ github.sha }}
+            ghcr.io/thefactor1/${{ matrix.image }}:${{ inputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.description=${{ matrix.description }}
