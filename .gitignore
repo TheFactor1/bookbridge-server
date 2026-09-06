@@ -1,0 +1,4 @@
+# Your filled-in settings. Holds tokens; never commit it.
+.env
+# The default library folder CWA creates when CALIBRE_LIBRARY is left blank.
+calibre-library/

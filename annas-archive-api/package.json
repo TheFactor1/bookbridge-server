@@ -1,0 +1,19 @@
+{
+  "name": "annas-archive-api",
+  "version": "1.0.0",
+  "description": "Self-contained Anna's Archive search UI + fast-download proxy.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "node dev.mjs",
+    "start": "node dev.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "express": "^5.1.0"
+  }
+}

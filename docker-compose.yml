@@ -1,0 +1,157 @@
+# Shelfmark server stack -- everything shelfmark.koplugin can talk to, in one
+# file. Only `shelfmark` runs by default; the rest are opt-in profiles, chosen
+# with COMPOSE_PROFILES in .env (see .env.example), never by editing this file.
+#
+#   docker compose up -d          # brings up whatever .env enables
+#
+# Profiles:
+#   (none)     shelfmark only -- search and request. The only required piece.
+#   sync       calibre-web-automated -- library sync, delivered-book downloads
+#   annas      annas-archive-api -- Anna's Archive as the primary source
+#   ai-local   shelfmark-ai-relay + ollama -- match suggestions, local model
+#   ai-cloud   shelfmark-ai-relay only -- match suggestions via an API key
+#
+# Shelfmark and CWA hand books to each other through ONE shared folder: the
+# `ingest` volume is /books inside Shelfmark and /cwa-book-ingest inside CWA.
+# Shelfmark drops a file there, CWA notices, imports it, and clears it. That
+# single mount is what makes "request on the Kindle, appears in the library"
+# work, so it is a named volume both services reference rather than two
+# host paths someone has to keep pointed at the same place.
+#
+# The two images this project publishes itself build from the source
+# directories beside this file. Once they are on GHCR the `image:` line is
+# what `docker compose pull` uses; the build context is only needed by
+# whoever publishes them (see .github/workflows/publish-images.yml).
+
+name: shelfmark
+
+services:
+
+  shelfmark:
+    image: ghcr.io/calibrain/shelfmark:${SHELFMARK_VERSION:-v1.3.14}
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      - FLASK_PORT=8084
+    ports:
+      # Published on the host on purpose: the Kindle talks to this directly
+      # over LAN or Tailscale. Nothing here goes through a reverse proxy.
+      - "${SHELFMARK_PORT:-8084}:8084"
+    volumes:
+      - shelfmark_config:/config
+      - ingest:/books
+    networks: [shelfmark]
+
+  cwa:
+    profiles: [sync]
+    image: crocodilestick/calibre-web-automated:${CWA_VERSION:-v4.0.6}
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      - NETWORK_SHARE_MODE=false
+      # Optional. Enables CWA's Hardcover metadata provider, which is what
+      # fills in series name and index -- metadata the plugin's series-aware
+      # matching leans on. Blank is fine; matching still works without it.
+      - HARDCOVER_TOKEN=${HARDCOVER_TOKEN:-}
+    ports:
+      - "${CWA_PORT:-8083}:8083"
+    volumes:
+      - cwa_config:/config
+      - ingest:/cwa-book-ingest
+      # Your existing Calibre library. The default is an empty folder next to
+      # this file, which CWA turns into a new library on first start. Not a
+      # `:?` required variable on purpose: compose evaluates those for every
+      # service even when its profile is off, which would make a plain
+      # `docker compose up -d` (Shelfmark only) fail over a CWA setting.
+      - "${CALIBRE_LIBRARY:-./calibre-library}:/calibre-library"
+    networks: [shelfmark]
+
+  annas-archive-api:
+    profiles: [annas]
+    image: ghcr.io/thefactor1/annas-archive-api:${ANNAS_API_VERSION:-latest}
+    build:
+      context: ./annas-archive-api
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-UTC}
+      - PORT=3000
+    ports:
+      # No auth of its own on purpose: the Anna's Archive account key that
+      # authorises a request travels from the plugin per call and is never
+      # stored here. Keep this on LAN/Tailscale; there is no reason to
+      # expose it, and nothing to gain from it if you did.
+      - "${ANNAS_API_PORT:-8087}:3000"
+    volumes:
+      - annas_data:/app/data
+    networks: [shelfmark]
+
+  shelfmark-ai-relay:
+    profiles: [ai-local, ai-cloud]
+    image: ghcr.io/thefactor1/shelfmark-ai-relay:${AI_RELAY_VERSION:-latest}
+    build:
+      context: ./shelfmark-ai-relay
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-UTC}
+      - PORT=8089
+      # The only thing the Kindle ever holds. Grants nothing but the right
+      # to ask this service to compare a filename against a list of titles.
+      # Left unset, the relay starts but fails closed: every request is
+      # refused with 401, /health reports configured=false, and the log says
+      # why. So no `:?` here either -- the feature is off until you set it,
+      # rather than the whole stack refusing to start.
+      - RELAY_TOKEN=${RELAY_TOKEN:-}
+      # ai-local: leave these at their defaults and the relay talks to the
+      # ollama container below over the stack network.
+      # ai-cloud: PROVIDER=anthropic and API_KEY=<your key>; ollama not needed.
+      - PROVIDER=${AI_PROVIDER:-openai}
+      - API_BASE=${AI_API_BASE:-http://ollama:11434/v1}
+      - MODEL=${AI_MODEL:-qwen2.5:7b-instruct}
+      - API_KEY=${AI_API_KEY:-}
+    ports:
+      - "${AI_RELAY_PORT:-8089}:8089"
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8089/health', timeout=5).status==200 else 1)"]
+      interval: 60s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    networks: [shelfmark]
+
+  ollama:
+    profiles: [ai-local]
+    image: ollama/ollama:${OLLAMA_VERSION:-0.12.3}
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-UTC}
+      # Unloads the model after 15 idle minutes: this serves a handful of
+      # requests after a sync, not a steady stream, and holding ~5GB
+      # resident around the clock for that is waste.
+      - OLLAMA_KEEP_ALIVE=15m
+      # One request at a time; CPU inference already saturates the cores.
+      - OLLAMA_NUM_PARALLEL=1
+    volumes:
+      # The default model is ~5GB. Named volume so it lands wherever Docker
+      # keeps its data; override with a bind mount if that disk is small.
+      - ollama_models:/root/.ollama
+    # CPU-only. A 7B model needs roughly 8GB free RAM to run at all; the
+    # limit below is the ceiling, not a requirement. This profile is the one
+    # place in this stack with a real hardware floor -- ai-cloud has none.
+    mem_limit: ${OLLAMA_MEM_LIMIT:-12g}
+    networks: [shelfmark]
+
+volumes:
+  shelfmark_config:
+  cwa_config:
+  ingest:
+  annas_data:
+  ollama_models:
+
+networks:
+  shelfmark:
