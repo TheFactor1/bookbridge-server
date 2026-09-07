@@ -31,6 +31,9 @@ jobs:
             description: "annas-archive-api, vendored from github.com/bitesized/annas-archive-api @ 4b3e1d3 (see VENDORED.md)"
           - image: shelfmark-ai-relay
             description: "Match-suggestion relay for shelfmark.koplugin"
+          - image: setup
+            image_name: shelfmark-setup
+            description: "First-run setup wizard for the Shelfmark stack"
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -44,8 +47,8 @@ jobs:
           context: ./${{ matrix.image }}
           push: true
           tags: |
-            ghcr.io/thefactor1/${{ matrix.image }}:${{ github.sha }}
-            ghcr.io/thefactor1/${{ matrix.image }}:${{ inputs.tag }}
+            ghcr.io/thefactor1/${{ matrix.image_name || matrix.image }}:${{ github.sha }}
+            ghcr.io/thefactor1/${{ matrix.image_name || matrix.image }}:${{ inputs.tag }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

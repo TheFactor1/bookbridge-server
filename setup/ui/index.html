@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shelfmark Setup</title>
+<style>
+  :root{
+    --bg:#0f1418; --panel:#171e24; --line:#2a343d; --line2:#3a4650;
+    --ink:#e6ebef; --mut:#93a1ad; --accent:#4ba3c7; --accent-ink:#0f1418;
+    --ok:#5bb98c; --bad:#d97a6c; --warn:#d0a457;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5}
+  .wrap{max-width:640px;margin:0 auto;padding:32px 20px 80px}
+  header{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+  h1{font-size:1.5rem;margin:0;letter-spacing:-.01em}
+  .sub{color:var(--mut);font-size:.95rem;margin:0 0 28px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:18px}
+  .card h2{font-size:1.05rem;margin:0 0 4px}
+  .card .hint{color:var(--mut);font-size:.88rem;margin:0 0 16px}
+  label{display:block;font-size:.9rem;margin:14px 0 6px;font-weight:600}
+  input[type=text],input[type=password]{width:100%;background:#0d1216;border:1px solid var(--line2);color:var(--ink);
+    border-radius:7px;padding:10px 12px;font-family:var(--mono);font-size:.9rem}
+  input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  .feat{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:8px;margin:10px 0;cursor:pointer}
+  .feat input{margin-top:3px}
+  .feat .t{font-weight:600}
+  .feat .d{color:var(--mut);font-size:.86rem}
+  .feat .sub-opts{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line2)}
+  .feat.off .sub-opts{display:none}
+  button{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:11px 18px;
+    font-weight:700;font-size:.95rem;cursor:pointer;font-family:var(--sans)}
+  button:disabled{opacity:.5;cursor:default}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line2)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  pre{background:#0b0f12;border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;
+    font-family:var(--mono);font-size:.8rem;color:var(--mut);max-height:220px;white-space:pre-wrap}
+  .svc{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+  .svc:last-child{border-bottom:0}
+  .pill{font-family:var(--mono);font-size:.72rem;padding:3px 9px;border-radius:20px;font-weight:700}
+  .pill.ok{background:rgba(91,185,140,.15);color:var(--ok)}
+  .pill.bad{background:rgba(217,122,108,.15);color:var(--bad)}
+  .pill.wait{background:rgba(208,164,87,.15);color:var(--warn)}
+  .code{font-family:var(--mono);font-size:2.6rem;font-weight:800;letter-spacing:.18em;color:var(--accent);
+    text-align:center;padding:18px;background:#0b0f12;border:1px dashed var(--accent);border-radius:10px;margin:14px 0}
+  .muted{color:var(--mut);font-size:.85rem}
+  .step-off{display:none}
+  ol.steps{padding-left:20px;color:var(--mut);font-size:.9rem}
+  ol.steps b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Shelfmark Setup</h1><span class="muted">first-run wizard</span></header>
+  <p class="sub">Answer a few questions. This writes the config, starts the services you pick, tests them, and gives your Kindle a pairing code. Nothing here is permanent &mdash; you can re-run it.</p>
+
+  <!-- 1. address -->
+  <div class="card">
+    <h2>1 &middot; This machine's address</h2>
+    <p class="hint">The address your Kindle reaches this computer at &mdash; your Tailscale IP (e.g. <span style="font-family:var(--mono)">100.x.x.x</span>) or a hostname on your network.</p>
+    <input type="text" id="address" placeholder="100.90.18.11" autocomplete="off">
+  </div>
+
+  <!-- 2. features -->
+  <div class="card">
+    <h2>2 &middot; What to run</h2>
+    <p class="hint">Shelfmark itself always runs. Turn on what you want; each is optional and can be added later.</p>
+
+    <label class="feat off" id="feat-sync">
+      <input type="checkbox" data-feat="sync">
+      <div>
+        <div class="t">Library sync (Calibre-Web-Automated)</div>
+        <div class="d">Sync your library and download delivered books.</div>
+        <div class="sub-opts">
+          <label>Calibre library folder <span class="muted">(blank = start a new one)</span></label>
+          <input type="text" data-k="calibre_library" placeholder="/path/to/Calibre Library" autocomplete="off">
+          <label>CWA login <span class="muted">(defaults to admin / admin123)</span></label>
+          <div class="row">
+            <input type="text" data-k="cwa_username" placeholder="admin" style="flex:1" autocomplete="off">
+            <input type="password" data-k="cwa_password" placeholder="admin123" style="flex:1" autocomplete="off">
+          </div>
+          <label>Hardcover API token <span class="muted">(optional, for series metadata)</span></label>
+          <input type="text" data-k="hardcover_token" placeholder="hc_..." autocomplete="off">
+        </div>
+      </div>
+    </label>
+
+    <label class="feat off" id="feat-annas">
+      <input type="checkbox" data-feat="annas">
+      <div>
+        <div class="t">Anna's Archive as the primary source</div>
+        <div class="d">Search Anna's Archive first, falling back to Shelfmark's own sources.</div>
+      </div>
+    </label>
+
+    <label class="feat off" id="feat-ai">
+      <input type="checkbox" data-feat="ai">
+      <div>
+        <div class="t">AI match suggestions</div>
+        <div class="d">Suggest matches for files sync can't resolve on its own. Uses a local model by default (needs ~8&nbsp;GB free RAM).</div>
+        <div class="sub-opts">
+          <label>Model API key <span class="muted">(only for the cloud option; blank = local model)</span></label>
+          <input type="text" data-k="ai_api_key" placeholder="sk-ant-..." autocomplete="off">
+        </div>
+      </div>
+    </label>
+  </div>
+
+  <!-- 3. go -->
+  <div class="card">
+    <h2>3 &middot; Configure &amp; start</h2>
+    <p class="hint">Writes the config and brings up the services you chose. This can take a minute the first time.</p>
+    <div class="row"><button id="go">Configure &amp; start</button><span class="muted" id="go-status"></span></div>
+    <pre id="go-out" class="step-off"></pre>
+  </div>
+
+  <!-- 4. test -->
+  <div class="card step-off" id="card-test">
+    <h2>4 &middot; Check the services</h2>
+    <p class="hint">Confirms each one is answering.</p>
+    <div id="test-results"></div>
+    <div class="row" style="margin-top:12px"><button class="ghost" id="retest">Re-check</button></div>
+  </div>
+
+  <!-- 5. pair -->
+  <div class="card step-off" id="card-pair">
+    <h2>5 &middot; Pair your Kindle</h2>
+    <p class="hint">On the Kindle: <b>Shelfmark &rarr; Settings &rarr; Import from server</b>, then enter this machine's address and the code below.</p>
+    <div class="code" id="code">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
+    <p class="muted" id="code-note">Single use, expires in 10 minutes. Generate a fresh one anytime.</p>
+    <div class="row"><button class="ghost" id="repair">New code</button></div>
+    <ol class="steps" style="margin-top:16px">
+      <li>Install the plugin on the Kindle (copy <b>shelfmark.koplugin</b> into KOReader's <b>plugins/</b> folder).</li>
+      <li>Open <b>Shelfmark &rarr; Settings &rarr; Import from server</b>.</li>
+      <li>Enter the address <b id="addr-echo">this machine</b> and the code above.</li>
+      <li>Done &mdash; every service you enabled is now configured on the reader.</li>
+    </ol>
+  </div>
+
+  <p class="muted" style="text-align:center;margin-top:24px">When you're finished, you can stop this setup container &mdash; the services keep running without it.</p>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+async function api(path,opts){const r=await fetch(path,opts);return {ok:r.ok,status:r.status,body:await r.json().catch(()=>({}))};}
+
+// feature toggle visuals
+$$('.feat input[data-feat]').forEach(cb=>{
+  cb.addEventListener('change',()=>cb.closest('.feat').classList.toggle('off',!cb.checked));
+});
+// don't let clicks in sub-options toggle the checkbox
+$$('.sub-opts').forEach(el=>el.addEventListener('click',e=>e.stopPropagation()));
+
+function answers(){
+  const features=$$('.feat input[data-feat]').filter(c=>c.checked).map(c=>c.dataset.feat);
+  const a={features};
+  $$('input[data-k]').forEach(i=>{if(i.value.trim())a[i.dataset.k]=i.value.trim();});
+  return a;
+}
+
+// prefill address from server state
+(async()=>{const s=await api('/api/state');if(s.body.host_address){$('#address').value=s.body.host_address;}})();
+
+$('#go').addEventListener('click',async()=>{
+  const addr=$('#address').value.trim();
+  if(!addr){$('#go-status').textContent='Enter the address in step 1 first.';return;}
+  $('#go').disabled=true;$('#go-status').textContent='Writing config…';
+  const cfg=await api('/api/configure',{method:'POST',body:JSON.stringify(answers())});
+  if(!cfg.ok){$('#go-status').textContent='Config error: '+(cfg.body.error||cfg.status);$('#go').disabled=false;return;}
+  $('#go-status').textContent='Starting services… (first run pulls images, be patient)';
+  const out=$('#go-out');out.classList.remove('step-off');out.textContent='working…';
+  const st=await api('/api/start',{method:'POST',body:JSON.stringify({})});
+  out.textContent=(st.body.output||'').trim()||'(no output)';
+  if(st.body.ok){$('#go-status').textContent='Started.';$('#card-test').classList.remove('step-off');runTest();}
+  else{$('#go-status').textContent='Start reported an error — see the log below.';}
+  $('#go').disabled=false;
+});
+
+async function runTest(){
+  const box=$('#test-results');box.innerHTML='<div class="muted">checking…</div>';
+  const r=await api('/api/test');const res=(r.body.results)||{};
+  box.innerHTML='';
+  Object.keys(res).forEach(name=>{
+    const ok=res[name].ok;
+    const row=document.createElement('div');row.className='svc';
+    row.innerHTML=`<span style="font-family:var(--mono)">${name}</span>
+      <span class="pill ${ok?'ok':'bad'}">${ok?'up':'no response'}</span>`;
+    box.appendChild(row);
+  });
+  // once things are up, reveal pairing
+  if(Object.values(res).some(v=>v.ok)){$('#card-pair').classList.remove('step-off');makeCode();}
+}
+$('#retest').addEventListener('click',runTest);
+
+async function makeCode(){
+  const addr=$('#address').value.trim();
+  $('#addr-echo').textContent=addr||'this machine';
+  const body={address:addr};
+  const u=$('input[data-k="cwa_username"]'),p=$('input[data-k="cwa_password"]');
+  if(u&&u.value.trim())body.cwa_username=u.value.trim();
+  if(p&&p.value)body.cwa_password=p.value;
+  const r=await api('/api/pair',{method:'POST',body:JSON.stringify(body)});
+  if(r.ok){$('#code').textContent=r.body.code;}
+  else{$('#code').textContent='error';$('#code-note').textContent=r.body.error||'could not create a code';}
+}
+$('#repair').addEventListener('click',makeCode);
+</script>
+</body>
+</html>

@@ -7,7 +7,25 @@ plugin at that machine.
 **You need a computer that runs Docker and stays on.** That is the one thing
 this can't do for you. Everything else is a few lines in one file.
 
-## Start
+## Easiest: the setup wizard
+
+```bash
+HOST_ADDRESS=$(tailscale ip -4 2>/dev/null | head -1) \
+  docker compose -f docker-compose.setup.yml up -d
+# then open http://<this machine>:8090
+```
+
+A browser page walks you through it: pick what to run, it writes the config,
+starts the services, tests them, and shows a code your Kindle claims under
+**Shelfmark → Settings → Import from server**. When you're done you can stop
+the wizard (`docker compose -f docker-compose.setup.yml down`) — the services
+keep running.
+
+The wizard holds the Docker socket (root on the host) so it can start the
+stack for you; it is meant to run only during setup. A socket proxy limiting
+it to just the calls it makes is a planned hardening step.
+
+## Or by hand
 
 ```bash
 cp .env.example .env      # then open .env and fill in what applies
