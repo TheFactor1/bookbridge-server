@@ -17,7 +17,7 @@ HOST_ADDRESS=$(tailscale ip -4 2>/dev/null | head -1) \
 
 A browser page walks you through it: pick what to run, it writes the config,
 starts the services, tests them, and shows a code your Kindle claims under
-**Shelfmark → Settings → Import from server**. When you're done you can stop
+**Bookbridge → Settings → Import from server**. When you're done you can stop
 the wizard (`docker compose -f docker-compose.setup.yml down`) — the services
 keep running.
 
