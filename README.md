@@ -86,3 +86,19 @@ built and published by this repository's own workflow
 `docker compose pull` can't fetch them and they build from the source
 directories beside this file — so the stack works for anyone with this
 repository, and not yet for anyone without it.
+
+## Credits
+
+This stack only arranges other people's software:
+[Shelfmark](https://github.com/calibrain/shelfmark) by calibrain,
+[Calibre-Web-Automated](https://github.com/crocodilestick/Calibre-Web-Automated)
+by crocodilestick, [KOReader](https://github.com/koreader/koreader), and
+[Anna's Archive](https://annas-archive.org) (searched by the `annas-archive-api`
+service beside this file). The compose file, the relay services and this
+document are the only original parts.
+
+## Authorship
+
+**Everything in this directory was written by an AI** (Claude, by Anthropic),
+with Matt directing, running it on his own server and devices, and deciding
+what to keep. Read it before you rely on it.
