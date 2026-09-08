@@ -1,6 +1,6 @@
 # Shelfmark server stack
 
-Everything the [Shelfmark KOReader plugin](https://github.com/TheFactor1/koreader-shelfmark-plugin) can
+Everything the [Bookbridge KOReader plugin](https://github.com/TheFactor1/koreader-bookbridge-plugin) (formerly the Shelfmark plugin) can
 talk to, in one `docker-compose.yml`. Run it on a machine at home; point the
 plugin at that machine.
 
