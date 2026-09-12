@@ -46,6 +46,12 @@ services:
 
   cwa:
     profiles: [sync]
+    # The live stack moved to ghcr.io/new-usemame/calibre-web-nextgen on
+    # 2026-09-12 (see shelfmark-stack.prod.yml, which is what actually runs).
+    # This template still pins upstream CWA: starting it against the current
+    # cwa/config/app.db would point an older schema reader at a database
+    # NextGen has already migrated -- restore the backup first, as CUTOVER.md
+    # "Rollback" describes.
     image: crocodilestick/calibre-web-automated:${CWA_VERSION:-v4.0.6}
     restart: unless-stopped
     environment:
