@@ -1,4 +1,6 @@
-# Shelfmark server stack
+# Bookbridge server
+
+*Formerly `shelfmark-stack` -- old links and clones still work; GitHub redirects them.*
 
 Everything the [Bookbridge KOReader plugin](https://github.com/TheFactor1/koreader-bookbridge-plugin) (formerly the Shelfmark plugin) can
 talk to, in one `docker-compose.yml`. Run it on a machine at home; point the
@@ -17,8 +19,8 @@ The server part in short (Linux or Mac; on Windows use WSL):
    reach it away from home, [Tailscale](https://tailscale.com/download).
 2. Get these files and start the wizard:
    ```bash
-   git clone https://github.com/TheFactor1/shelfmark-stack
-   cd shelfmark-stack
+   git clone https://github.com/TheFactor1/bookbridge-server
+   cd bookbridge-server
    docker compose -f docker-compose.setup.yml up -d
    ```
 3. Open **http://localhost:8090** and follow its five parts: this machine's

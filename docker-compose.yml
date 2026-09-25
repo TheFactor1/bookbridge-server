@@ -1,4 +1,4 @@
-# Shelfmark server stack -- everything shelfmark.koplugin can talk to, in one
+# Bookbridge server -- everything the Bookbridge KOReader plugin can talk to, in one
 # file. Only `shelfmark` runs by default; the rest are opt-in profiles, chosen
 # with COMPOSE_PROFILES in .env (see .env.example), never by editing this file.
 #

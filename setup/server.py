@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shelfmark setup wizard -- the one page that stands up the stack.
+"""Bookbridge server setup wizard -- the one page that stands up the stack.
 
 A small stdlib HTTP server (no framework, same idiom as shelfmark-ai-relay).
 It runs alongside Docker, holds the stack directory and the Docker socket, and
@@ -119,7 +119,7 @@ _SAFE = re.compile(r"^[A-Za-z0-9 _./:@,+-]*$")
 
 def write_env(values):
     """Write a minimal .env from a whitelisted, validated dict."""
-    lines = ["# Written by the Shelfmark setup wizard. Re-run the wizard to change."]
+    lines = ["# Written by the Bookbridge server setup wizard. Re-run the wizard to change."]
     for k in ENV_KEYS:
         v = values.get(k, "")
         if v is None:
