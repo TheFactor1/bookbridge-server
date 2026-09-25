@@ -9,17 +9,27 @@ this can't do for you. Everything else is a few lines in one file.
 
 ## Easiest: the setup wizard
 
-```bash
-HOST_ADDRESS=$(tailscale ip -4 2>/dev/null | head -1) \
-  docker compose -f docker-compose.setup.yml up -d
-# then open http://<this machine>:8090
-```
+The full walkthrough, including the reader side, is in the
+[Bookbridge README](https://github.com/TheFactor1/koreader-bookbridge-plugin#set-it-up-step-by-step).
+The server part in short (Linux or Mac; on Windows use WSL):
 
-A browser page walks you through it: pick what to run, it writes the config,
-starts the services, tests them, and shows a code your Kindle claims under
-**Bookbridge → Settings → Import from server**. When you're done you can stop
-the wizard (`docker compose -f docker-compose.setup.yml down`) — the services
-keep running.
+1. Install [Docker](https://docs.docker.com/get-docker/) and, if you want to
+   reach it away from home, [Tailscale](https://tailscale.com/download).
+2. Get these files and start the wizard:
+   ```bash
+   git clone https://github.com/TheFactor1/shelfmark-stack
+   cd shelfmark-stack
+   docker compose -f docker-compose.setup.yml up -d
+   ```
+3. Open **http://localhost:8090** and follow its five parts: this machine's
+   address, what to run, **Configure & start**, **Check the services**, and
+   **Pair your Kindle**, which shows a 6-character code (valid 10 minutes).
+4. Open **http://localhost:8084** and make your Shelfmark account.
+5. On the reader: **Bookbridge > Status & setup > Start here**, enter the
+   address and the code.
+
+When you're done, stop the wizard -- the services keep running:
+`docker compose -f docker-compose.setup.yml down`
 
 The wizard holds the Docker socket (root on the host) so it can start the
 stack for you; it is meant to run only during setup. A socket proxy limiting
