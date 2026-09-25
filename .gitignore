@@ -2,3 +2,4 @@
 .env
 # The default library folder CWA creates when CALIBRE_LIBRARY is left blank.
 calibre-library/
+__pycache__/
