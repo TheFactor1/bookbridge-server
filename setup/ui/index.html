@@ -77,7 +77,7 @@
         <div class="sub-opts">
           <label>Calibre library folder <span class="muted">(blank = start a new one)</span></label>
           <input type="text" data-k="calibre_library" placeholder="/path/to/Calibre Library" autocomplete="off">
-          <label>CWA login <span class="muted">(defaults to admin / admin123)</span></label>
+          <label>Library login <span class="muted">(defaults to admin / admin123)</span></label>
           <div class="row">
             <input type="text" data-k="cwa_username" placeholder="admin" style="flex:1" autocomplete="off">
             <input type="password" data-k="cwa_password" placeholder="admin123" style="flex:1" autocomplete="off">
@@ -128,15 +128,15 @@
   <!-- 5. pair -->
   <div class="card step-off" id="card-pair">
     <h2>5 &middot; Pair your Kindle</h2>
-    <p class="hint">On the Kindle: <b>Shelfmark &rarr; Settings &rarr; Import from server</b>, then enter this machine's address and the code below.</p>
+    <p class="hint">On the reader: <b>Bookbridge &rarr; Status &amp; setup &rarr; Start here</b>, then enter this machine's address and the code below.</p>
     <div class="code" id="code">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
     <p class="muted" id="code-note">Single use, expires in 10 minutes. Generate a fresh one anytime.</p>
     <div class="row"><button class="ghost" id="repair">New code</button></div>
     <ol class="steps" style="margin-top:16px">
-      <li>Install the plugin on the Kindle (copy <b>shelfmark.koplugin</b> into KOReader's <b>plugins/</b> folder).</li>
-      <li>Open <b>Shelfmark &rarr; Settings &rarr; Import from server</b>.</li>
+      <li>Put Bookbridge on the reader: copy the <b>bookbridge.koplugin</b> folder from the <a href="https://github.com/TheFactor1/koreader-bookbridge-plugin/releases/latest" style="color:var(--accent)">latest release</a> into KOReader's <b>plugins/</b> folder, then restart KOReader.</li>
+      <li>Bookbridge opens <b>Status &amp; setup</b> by itself. Tap <b>Start here: import settings from your server</b>.</li>
       <li>Enter the address <b id="addr-echo">this machine</b> and the code above.</li>
-      <li>Done &mdash; every service you enabled is now configured on the reader.</li>
+      <li>Done &mdash; every service you enabled is set up. On the same screen, tap <b>Shelfmark</b> and sign in with your Shelfmark account.</li>
     </ol>
   </div>
 
