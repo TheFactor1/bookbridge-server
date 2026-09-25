@@ -45,9 +45,11 @@ UI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui")
 # Which optional features map to which compose profile and which services they
 # turn on. The single source of truth the UI and the writer both read from.
 FEATURES = {
-    "sync":  {"profile": "sync",  "label": "Library sync (Calibre-Web-Automated)"},
+    "sync":  {"profile": "sync",  "label": "Library sync (Calibre-Web-NextGen)"},
     "annas": {"profile": "annas", "label": "Anna's Archive as the primary source"},
-    "ai":    {"profile": "ai",    "label": "AI match suggestions"},
+    # The compose file has two AI profiles; which one depends on the answers
+    # (see ai_profile). A literal "ai" profile starts nothing.
+    "ai":    {"profile": "ai-cloud", "label": "AI match suggestions"},
 }
 # Services and the host port each answers on, for the reachability test. Keyed
 # to what the compose file publishes.
@@ -56,7 +58,13 @@ SERVICE_PORTS = {
     "cwa": 8083,
     "annas-archive-api": 8087,
     "shelfmark-ai-relay": 8089,
+    "shelfmark-pairing-relay": 8086,
 }
+
+
+def ai_profile(answers):
+    """ai-local runs a model on this machine (ollama); ai-cloud uses an API key."""
+    return "ai-cloud" if (answers.get("ai_api_key") or "").strip() else "ai-local"
 
 # ---- claim codes (the Kindle pairing) -------------------------------------
 # A claim is the plugin's settings, held briefly under a short code the person
@@ -270,7 +278,7 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_configure(self, answers):
         # Build the env from a strict, validated set of answers.
         features = [f for f in answers.get("features", []) if f in FEATURES]
-        profiles = ",".join(FEATURES[f]["profile"] for f in features)
+        profiles = ",".join(ai_profile(answers) if f == "ai" else FEATURES[f]["profile"] for f in features)
         calibre = answers.get("calibre_library", "")
         # An absolute default, not the compose file's relative ./calibre-library:
         # compose runs against the host daemon from inside this container, and a
@@ -305,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_start(self, body):
         env = read_env()
         profiles = env.get("COMPOSE_PROFILES", "")
-        args = ["--profile", "sync", "--profile", "annas", "--profile", "ai"] if False else []
+        args = []
         for p in [x for x in profiles.split(",") if x]:
             args += ["--profile", p]
         rc, out = compose(*(args + ["up", "-d"]), timeout=600)
@@ -314,12 +322,12 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_test(self):
         env = read_env()
         profiles = [x for x in env.get("COMPOSE_PROFILES", "").split(",") if x]
-        want = {"shelfmark"}
+        want = {"shelfmark", "shelfmark-pairing-relay"}
         if "sync" in profiles:
             want.add("cwa")
         if "annas" in profiles:
             want.add("annas-archive-api")
-        if "ai" in profiles:
+        if "ai-local" in profiles or "ai-cloud" in profiles:
             want.add("shelfmark-ai-relay")
         results = {}
         for name in sorted(want):
@@ -337,17 +345,18 @@ class Handler(BaseHTTPRequestHandler):
         env = read_env()
         profiles = [x for x in env.get("COMPOSE_PROFILES", "").split(",") if x]
         # The plugin settings, pointing every enabled service at this host.
-        settings = {"server_url": "http://%s:%d" % (host, SERVICE_PORTS["shelfmark"])}
+        settings = {"server_url": "http://%s:%d" % (host, SERVICE_PORTS["shelfmark"]),
+                    "pairing_relay_url": "http://%s:%d" % (host, SERVICE_PORTS["shelfmark-pairing-relay"])}
         if "sync" in profiles:
             settings["cwa_url"] = "http://%s:%d" % (host, SERVICE_PORTS["cwa"])
-            # CWA ships with admin/admin123; carry that so the plugin works out
+            # Calibre-Web-NextGen ships with admin/admin123; carry that so the plugin works out
             # of the box, and let the wizard override it if the person changed
             # it. Not a secret this server invented -- it's CWA's own default.
             settings["cwa_username"] = (body.get("cwa_username") or "admin").strip()
             settings["cwa_password"] = body.get("cwa_password") or "admin123"
         if "annas" in profiles:
             settings["annas_url"] = "http://%s:%d" % (host, SERVICE_PORTS["annas-archive-api"])
-        if "ai" in profiles:
+        if "ai-local" in profiles or "ai-cloud" in profiles:
             settings["ai_relay_url"] = "http://%s:%d" % (host, SERVICE_PORTS["shelfmark-ai-relay"])
             settings["ai_relay_token"] = env.get("RELAY_TOKEN", "")
         code = mint_claim(settings)

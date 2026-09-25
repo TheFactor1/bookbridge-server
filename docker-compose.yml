@@ -46,13 +46,10 @@ services:
 
   cwa:
     profiles: [sync]
-    # The live stack moved to ghcr.io/new-usemame/calibre-web-nextgen on
-    # 2026-09-12 (see shelfmark-stack.prod.yml, which is what actually runs).
-    # This template still pins upstream CWA: starting it against the current
-    # cwa/config/app.db would point an older schema reader at a database
-    # NextGen has already migrated -- restore the backup first, as CUTOVER.md
-    # "Rollback" describes.
-    image: crocodilestick/calibre-web-automated:${CWA_VERSION:-v4.0.6}
+    # Calibre-Web-NextGen: a maintained fork of Calibre-Web-Automated (the
+    # upstream shipped no release after v4.0.6 while security fixes piled up
+    # unreleased). Same volumes, same ports, same admin/admin123 first login.
+    image: ghcr.io/new-usemame/calibre-web-nextgen:${CWA_VERSION:-v4.1.43}
     restart: unless-stopped
     environment:
       - PUID=${PUID:-1000}
@@ -74,6 +71,25 @@ services:
       # service even when its profile is off, which would make a plain
       # `docker compose up -d` (Shelfmark only) fail over a CWA setting.
       - "${CALIBRE_LIBRARY:-./calibre-library}:/calibre-library"
+    networks: [shelfmark]
+
+  shelfmark-pairing-relay:
+    # Always on, and tiny (~12 MB). Two things on the reader need it:
+    # "Set up another device" (a phone/Kindle copies this one's settings by
+    # QR; the relay only ever holds them encrypted, for a few minutes) and
+    # "Send debug log to server" (logs land in the pairing_logs volume, for
+    # you to read -- they are never served back).
+    image: ghcr.io/thefactor1/shelfmark-pairing-relay:${PAIRING_RELAY_VERSION:-latest}
+    build:
+      context: ./shelfmark-pairing-relay
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-UTC}
+      - LOG_DIR=/logs
+    ports:
+      - "${PAIRING_PORT:-8086}:8086"
+    volumes:
+      - pairing_logs:/logs
     networks: [shelfmark]
 
   annas-archive-api:
@@ -153,6 +169,7 @@ services:
     networks: [shelfmark]
 
 volumes:
+  pairing_logs:
   shelfmark_config:
   cwa_config:
   ingest:

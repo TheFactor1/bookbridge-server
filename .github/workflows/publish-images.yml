@@ -1,4 +1,4 @@
-# Builds and publishes the two images this stack owns to GHCR.
+# Builds and publishes the images this stack owns to GHCR.
 #
 # MANUAL ONLY. Nothing is built or pushed until someone presses "Run
 # workflow" in the Actions tab; a push to this repository never publishes on
@@ -31,6 +31,8 @@ jobs:
             description: "annas-archive-api, vendored from github.com/bitesized/annas-archive-api @ 4b3e1d3 (see VENDORED.md)"
           - image: shelfmark-ai-relay
             description: "Match-suggestion relay for shelfmark.koplugin"
+          - image: shelfmark-pairing-relay
+            description: "Pairing and debug-log relay for the Bookbridge KOReader plugin"
           - image: setup
             image_name: shelfmark-setup
             description: "First-run setup wizard for the Shelfmark stack"
