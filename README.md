@@ -26,9 +26,18 @@ The server part in short (Linux or Mac; on Windows use WSL):
 3. Open **http://localhost:8090** and follow its five parts: this machine's
    address, what to run, **Configure & start**, **Check the services**, and
    **Pair your Kindle**, which shows a 6-character code (valid 10 minutes).
-4. Open **http://localhost:8084** and make your Shelfmark account.
+4. Open **http://localhost:8084** and make your Shelfmark account: finish its
+   welcome setup (it needs a free [Hardcover](https://hardcover.app/account/api)
+   API key to search), then **Settings > Users & Requests > Create Local User**,
+   and **Settings > Security > Authentication Method: Local > Save Changes**.
+   Shelfmark starts with no login, and Bookbridge needs one.
+   [Step 6 of the Bookbridge guide](https://github.com/TheFactor1/koreader-bookbridge-plugin#step-6----make-your-shelfmark-account)
+   shows each click.
 5. On the reader: **Bookbridge > Status & setup > Start here**, enter the
    address and the code.
+
+The [Bookbridge README](https://github.com/TheFactor1/koreader-bookbridge-plugin#set-it-up-step-by-step)
+walks through all of this with annotated screenshots.
 
 When you're done, stop the wizard -- the services keep running:
 `docker compose -f docker-compose.setup.yml down`
