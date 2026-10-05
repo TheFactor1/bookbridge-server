@@ -20,6 +20,7 @@
 #   BB_SOURCE        a local copy to install from instead of downloading
 #   SHELFMARK_PORT CWA_PORT PAIRING_PORT ANNAS_API_PORT AI_RELAY_PORT   ports
 set -eu
+{   # (all of it is read before any of it runs -- see the end)
 
 say() { printf '%s\n' "$*"; }
 die() { printf '\nStopped: %s\n' "$*" >&2; exit 1; }
@@ -155,7 +156,7 @@ case ",$(getenv COMPOSE_PROFILES)," in *,ai-local,*|*,ai-cloud,*) setdefault REL
 # Shelfmark install, or a second copy of this one).
 PROJECT=${BB_PROJECT:-$(getenv COMPOSE_PROJECT_NAME)}
 if [ -z "$PROJECT" ]; then
-    projects=$($DOCKER compose ls -a --format json 2>/dev/null | tr '{' '\n' || true)
+    projects=$($DOCKER compose ls -a --format json < /dev/null 2>/dev/null | tr '{' '\n' || true)
     for name in shelfmark bookbridge bookbridge2 bookbridge3 bookbridge4; do
         mine=$(printf '%s\n' "$projects" | grep "\"Name\":\"$name\"" || true)
         if [ -z "$mine" ] || printf '%s' "$mine" | grep -q "$DIR/"; then PROJECT=$name; break; fi
@@ -166,7 +167,11 @@ setenv COMPOSE_PROJECT_NAME "$PROJECT"
 
 # ---- start ---------------------------------------------------------------------
 say "Starting (the first time downloads a few hundred MB)..."
-compose() { $DOCKER compose -p "$PROJECT" "$@"; }
+# (stdin is this script when it arrives through `curl | sh`: docker must not
+# read it, or the rest of the script is gone. Seeding passes a file in
+# with feed.)
+compose() { $DOCKER compose -p "$PROJECT" "$@" < /dev/null; }
+feed() { f=$1; shift; $DOCKER compose -p "$PROJECT" "$@" < "$f"; }
 # images that aren't published yet are built from the folders next to the file
 compose pull -q --ignore-buildable >/dev/null 2>&1 || compose pull -q >/dev/null 2>&1 || true
 compose up -d --build >/dev/null 2>&1 || compose up -d --build || die "docker compose couldn't start everything (output above)."
@@ -178,9 +183,9 @@ until compose exec -T shelfmark test -f /config/users.db 2>/dev/null; do
     i=$((i + 1)); [ $i -gt 60 ] && die "Shelfmark didn't start within two minutes ('$DOCKER compose -p $PROJECT logs shelfmark' says why)."
     sleep 2
 done
-compose exec -T -e BB_USER="$(getenv SHELFMARK_USERNAME)" -e BB_PASS="$(getenv SHELFMARK_PASSWORD)" \
+feed setup/seed_shelfmark.py exec -T -e BB_USER="$(getenv SHELFMARK_USERNAME)" -e BB_PASS="$(getenv SHELFMARK_PASSWORD)" \
     -e BB_HARDCOVER="$(getenv HARDCOVER_TOKEN)" -e BB_FRESH="$FRESH" \
-    shelfmark python3 - < setup/seed_shelfmark.py > .seed.log 2>&1 \
+    shelfmark python3 - > .seed.log 2>&1 \
     || { cat .seed.log; die "Couldn't set up Shelfmark."; }
 grep -v ' - INFO - ' .seed.log | sed 's/^/  /'; rm -f .seed.log
 compose restart shelfmark >/dev/null 2>&1
@@ -196,8 +201,8 @@ if [ "$cwa_on" = yes ] && [ -n "$(getenv CWA_PASSWORD)" ]; then
         i=$((i + 1)); [ $i -gt 90 ] && die "Calibre-Web didn't start within three minutes ('$DOCKER compose -p $PROJECT logs cwa' says why)."
         sleep 2
     done
-    out=$(compose exec -T -e BB_USER="$(getenv CWA_USERNAME)" -e BB_PASS="$(getenv CWA_PASSWORD)" \
-        cwa python3 - < setup/seed_cwa.py 2>&1) || { say "$out"; die "Couldn't set up Calibre-Web."; }
+    out=$(feed setup/seed_cwa.py exec -T -e BB_USER="$(getenv CWA_USERNAME)" -e BB_PASS="$(getenv CWA_PASSWORD)" \
+        cwa python3 - 2>&1) || { say "$out"; die "Couldn't set up Calibre-Web."; }
     say "  $out"
 fi
 
@@ -233,3 +238,8 @@ case "$(uname -r 2>/dev/null)" in *[Mm]icrosoft*)
     say " on (https://learn.microsoft.com/windows/wsl/networking#mirrored-mode-networking)."
     say " Then the address above is your PC's; check it with ipconfig in Windows." ;;
 esac
+
+# The closing brace: through `curl | sh` the shell has now read the whole
+# script, so nothing above can run on a half-downloaded copy.
+exit 0
+}
