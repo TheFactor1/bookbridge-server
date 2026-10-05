@@ -150,13 +150,17 @@ done
 case ",$(getenv COMPOSE_PROFILES)," in *,ai-local,*|*,ai-cloud,*) setdefault RELAY_TOKEN "$(rand 32)" ;; esac
 
 # The compose project: kept in .env, so plain `docker compose ...` in this
-# folder finds it. "shelfmark" unless another "shelfmark" (an existing
-# Shelfmark install, say) lives somewhere else -- never take that one over.
+# folder finds it. The first of shelfmark, bookbridge, bookbridge2... that
+# no other folder uses -- never take over someone else's (an existing
+# Shelfmark install, or a second copy of this one).
 PROJECT=${BB_PROJECT:-$(getenv COMPOSE_PROJECT_NAME)}
 if [ -z "$PROJECT" ]; then
-    PROJECT=shelfmark
-    other=$($DOCKER compose ls -a --filter name=shelfmark --format json 2>/dev/null | tr '{' '\n' | grep '"Name":"shelfmark"' || true)
-    if [ -n "$other" ] && ! printf '%s' "$other" | grep -q "$DIR/"; then PROJECT=bookbridge; fi
+    projects=$($DOCKER compose ls -a --format json 2>/dev/null | tr '{' '\n' || true)
+    for name in shelfmark bookbridge bookbridge2 bookbridge3 bookbridge4; do
+        mine=$(printf '%s\n' "$projects" | grep "\"Name\":\"$name\"" || true)
+        if [ -z "$mine" ] || printf '%s' "$mine" | grep -q "$DIR/"; then PROJECT=$name; break; fi
+    done
+    [ -n "$PROJECT" ] || die "Couldn't pick a docker compose project name; set BB_PROJECT."
 fi
 setenv COMPOSE_PROJECT_NAME "$PROJECT"
 
