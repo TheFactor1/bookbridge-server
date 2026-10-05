@@ -47,6 +47,15 @@ else:
     print("made admin account %s" % user)
 if fresh:
     save_config_file("security", {"AUTH_METHOD": "builtin"})
-    print("shelfmark set up: search via %s, Local logins" % provider)
+    # Requests are what the reader sends; Shelfmark starts with them off, and
+    # its default ("download") refuses a request that names no particular
+    # file -- which is every request while no download source is set up.
+    # request_release takes both kinds and waits for an admin's OK.
+    save_config_file("users", {
+        "REQUESTS_ENABLED": True,
+        "REQUEST_POLICY_DEFAULT_EBOOK": "request_release",
+        "REQUEST_POLICY_DEFAULT_AUDIOBOOK": "request_release",
+    })
+    print("shelfmark set up: search via %s, Local logins, requests on" % provider)
 else:
     print("shelfmark settings left as they are")
