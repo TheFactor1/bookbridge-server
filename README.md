@@ -28,7 +28,7 @@ optional Hardcover key, then does the rest:
 At the end you see something like:
 
 ```
- Done. Your server password:  ucf4-znhy-nfyh
+ Done. Your server password:  k7mq-r2xp-w9hd
 
  Connect a reader:
    1. On the reader: Bookbridge > Connect a book server
@@ -125,10 +125,28 @@ Then finish Shelfmark's own first-run setup at `http://<this machine>:8084`
 login), change Calibre-Web's `admin/admin123`, and set `BB_PASSWORD` plus
 the logins in `.env` if you want readers to connect with a code.
 
+## Already run TrueNAS or Unraid?
+
+Shelfmark and Calibre-Web-Automated are already in both app catalogs
+([TrueNAS](https://apps.truenas.com/catalog/shelfmark_community/),
+[Unraid Community Applications](https://ca.unraid.net/apps/shelfmark-1euqv2n0b1eye3)).
+Install them from there, and:
+
+- give both the **same** downloads folder (Shelfmark's download folder is
+  Calibre-Web's ingest folder), so requested books land in the library;
+- in Shelfmark, make a local user and set Authentication to Local (Bookbridge
+  needs a login);
+- on the reader, enter both addresses and logins under **Bookbridge >
+  Settings > Connections**.
+
+Connecting with a code needs this repository's pairing relay as well; with
+the two apps on the same machine, set `BB_PASSWORD` and the logins and ports
+in `.env` here and run `docker compose up -d shelfmark-pairing-relay`.
+
 ## Status
 
 Three of the images here -- `annas-archive-api`, `shelfmark-ai-relay` and
-`shelfmark-pairing-relay` -- are published by this repository's own workflow
+`shelfmark-pairing-relay` -- are published (for amd64 and arm64) by this repository's own workflow
 (`.github/workflows/publish-images.yml`, run by hand). Until a run has
 published them, they build from the folders beside this file, so a fresh
 install always works.
@@ -144,6 +162,13 @@ by crocodilestick, [KOReader](https://github.com/koreader/koreader), and
 [Anna's Archive](https://annas-archive.org) (searched by the `annas-archive-api`
 service beside this file). The compose file, the install script, the relay services and this
 document are the only original parts.
+
+## License
+
+[AGPL-3.0](LICENSE) for everything written here. Not covered: the services it
+runs, which keep their own licenses, and `annas-archive-api/`, a copy of
+[bitesized/annas-archive-api](https://github.com/bitesized/annas-archive-api)
+(see its `VENDORED.md`), whose upstream has not published a license.
 
 ## Authorship
 
