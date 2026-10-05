@@ -86,6 +86,22 @@ services:
     environment:
       - TZ=${TZ:-UTC}
       - LOG_DIR=/logs
+      # Connecting a reader (Bookbridge > Connect a book server): approving
+      # needs BB_PASSWORD; the reader then gets every enabled service's
+      # address and these logins. All written by install.sh.
+      - BB_PASSWORD=${BB_PASSWORD:-}
+      - SERVER_NAME=${SERVER_NAME:-}
+      - COMPOSE_PROFILES=${COMPOSE_PROFILES:-}
+      - SHELFMARK_USERNAME=${SHELFMARK_USERNAME:-}
+      - SHELFMARK_PASSWORD=${SHELFMARK_PASSWORD:-}
+      - CWA_USERNAME=${CWA_USERNAME:-admin}
+      - CWA_PASSWORD=${CWA_PASSWORD:-admin123}
+      - RELAY_TOKEN=${RELAY_TOKEN:-}
+      - SHELFMARK_PORT=${SHELFMARK_PORT:-8084}
+      - CWA_PORT=${CWA_PORT:-8083}
+      - ANNAS_API_PORT=${ANNAS_API_PORT:-8087}
+      - AI_RELAY_PORT=${AI_RELAY_PORT:-8089}
+      - PAIRING_PORT=${PAIRING_PORT:-8086}
     ports:
       - "${PAIRING_PORT:-8086}:8086"
     volumes:
