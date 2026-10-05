@@ -116,7 +116,7 @@ if [ "$FRESH" = yes ]; then
         case "$annas" in [Yy]*) features="${features:+$features,}annas" ;; esac
     fi
     hardcover=${BB_HARDCOVER-}
-    [ -z "${BB_HARDCOVER+x}" ] && hardcover=$(ask "Hardcover API key for better search (from hardcover.app/account/api; Enter to skip)" "")
+    [ -z "${BB_HARDCOVER+x}" ] && hardcover=$(ask "Hardcover API key (hardcover.app/account/api), or Enter to skip" "")
     password=$(rand 4)-$(rand 4)-$(rand 4)
     setenv COMPOSE_PROFILES "$features"
     setenv PUID "$(id -u)"
@@ -187,8 +187,7 @@ say " Done. Your server password:  $(getenv BB_PASSWORD)"
 say "========================================================"
 say ""
 say " Connect a reader:"
-say "   1. On the reader: Reading Ledger > Settings > Bookbridge >"
-say "      Connect a book server   (or Bookbridge > Connect a book server)"
+say "   1. On the reader: Bookbridge > Connect a book server"
 say "   2. It shows a code. On your phone or computer open"
 say "        http://${lan:-<this machine>}:$pair_port"
 say "      and enter the code and the password above."

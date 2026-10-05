@@ -3,7 +3,7 @@
 *Formerly `shelfmark-stack` -- old links and clones still work; GitHub redirects them.*
 
 Everything the [Bookbridge KOReader plugin](https://github.com/TheFactor1/koreader-bookbridge-plugin)
-(and the Reading Ledger, which has Bookbridge inside it) talks to: search and
+talks to: search and
 request books from your reader, and keep your library in sync with it.
 
 **You need a computer that stays on** -- Linux, a Mac, or Windows with WSL.
@@ -31,8 +31,7 @@ At the end you see something like:
  Done. Your server password:  ucf4-znhy-nfyh
 
  Connect a reader:
-   1. On the reader: Reading Ledger > Settings > Bookbridge >
-      Connect a book server   (or Bookbridge > Connect a book server)
+   1. On the reader: Bookbridge > Connect a book server
    2. It shows a code. On your phone or computer open
         http://192.168.1.20:8086
       and enter the code and the password above.
