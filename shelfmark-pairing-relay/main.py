@@ -46,14 +46,18 @@ pairing text, and never touches this service at all.
                          set. Capped at 512 KB and 20 uploads a minute so a
                          misbehaving client cannot fill the disk.
 
-No authentication -- by design. Anyone who could authenticate would need a
-credential pre-shared over some other channel, at which point they could
-exchange the settings directly and skip this whole feature. Security here
-comes from three things instead: the code is unguessable in the time it
-matters (8 random hex chars = 32 bits, and reachable only over
-Tailscale/LAN, not the public internet), entries expire after 5 minutes
-even if never fetched, and a successful guess of the code alone still only
-yields ciphertext -- the decryption key never passes through this service.
+/pair has no authentication, by design: a code is unguessable in the time
+it matters (8 random hex chars, reachable only over Tailscale/LAN), entries
+expire after 5 minutes, and a guessed code still only yields ciphertext --
+the decryption key never passes through this service.
+
+Connecting a reader is different: an approved claim carries the logins in
+plain text (over the LAN/Tailscale, like every other request the reader
+makes). So approving needs the server password; tries are limited per
+client; the page shows which reader (name and address) is waiting for a
+code, so a code planted in a link by someone else stands out; a claim works
+once, by a 128-bit token only the waiting reader has; and nothing waits
+longer than 10 minutes.
 """
 
 import hmac
@@ -86,7 +90,7 @@ SERVER_NAME = os.environ.get("SERVER_NAME", "") or socket.gethostname()
 CONNECT_TTL = 10 * 60
 CODE_ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # no O/0/I/1: read off e-ink
 _connects: dict[str, dict] = {}     # token -> {code, host, device, expires, settings}
-_attempts: list[float] = []         # failed approvals, for a simple rate limit
+_attempts: dict[str, list] = {}     # client address -> times of approval tries
 
 
 def _env_port(name, default):
@@ -126,41 +130,58 @@ def _purge_connects():
         del _connects[t]
 
 
-def connect_hello(device, host):
+def connect_hello(device, host, ip):
     with _lock:
         _purge_connects()
-        if len(_connects) > 50:
+        # (one device can't crowd out everybody else's readers)
+        if len(_connects) > 50 or sum(1 for c in _connects.values() if c["ip"] == ip) >= 3:
             return None
         used = {c["code"] for c in _connects.values()}
         code = "".join(secrets.choice(CODE_ALPHA) for _ in range(6))
         while code in used:
             code = "".join(secrets.choice(CODE_ALPHA) for _ in range(6))
         token = secrets.token_hex(16)
-        _connects[token] = {"code": code, "host": host, "device": device,
+        _connects[token] = {"code": code, "host": host, "device": device, "ip": ip,
                             "expires": time.time() + CONNECT_TTL, "settings": None}
     return code, token
 
 
-def connect_approve(code, password):
+def connect_pending(code):
+    """-> (device, ip) of the reader waiting with this code, or None"""
+    code = re.sub(r"[^A-Za-z0-9]", "", code or "").upper()
+    with _lock:
+        _purge_connects()
+        for c in _connects.values():
+            if c["code"] == code and c["settings"] is None:
+                return c["device"] or "A reader", c["ip"]
+    return None
+
+
+def connect_approve(code, password, ip):
     """-> (ok, message)"""
     now = time.time()
     with _lock:
-        _attempts[:] = [t for t in _attempts if now - t < 60]
-        if len(_attempts) >= 5:
+        # five tries a minute from any one address (counted before checking,
+        # so parallel requests can't slip past)
+        tries = [t for t in _attempts.get(ip, []) if now - t < 60]
+        for k in [k for k, v in _attempts.items() if not v or now - v[-1] >= 60]:
+            del _attempts[k]
+        if len(tries) >= 5:
+            _attempts[ip] = tries
             return False, "Too many tries. Wait a minute and try again."
+        tries.append(now)
+        _attempts[ip] = tries
     if not BB_PASSWORD:
         return False, "Connecting readers is switched off on this server (no BB_PASSWORD set)."
-    good = hmac.compare_digest(password.encode(), BB_PASSWORD.encode())
+    if not hmac.compare_digest(password.encode(), BB_PASSWORD.encode()):
+        return False, "That isn't the server password."
     code = re.sub(r"[^A-Za-z0-9]", "", code).upper()
     with _lock:
         _purge_connects()
-        if not good:
-            _attempts.append(now)
-            return False, "That isn't the server password."
         for c in _connects.values():
             if c["code"] == code and c["settings"] is None:
                 c["settings"] = connect_settings(c["host"])
-                return True, c["device"] or "your reader"
+                return True, c["device"] or "Your reader"
     return False, "No reader is waiting with that code. Codes last 10 minutes -- start again on the reader."
 
 
@@ -186,33 +207,60 @@ CONNECT_PAGE = """<!doctype html>
  body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 system-ui,sans-serif}
  main{max-width:28rem;margin:0 auto;padding:2.5rem 1rem}
  h1{font-size:1.5rem;margin:0 0 .25rem} p{color:var(--soft);margin:.25rem 0 1.5rem}
- form{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1.25rem}
+ .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1.25rem}
  label{display:block;font-weight:600;margin:.75rem 0 .3rem}
+ label:first-child{margin-top:0}
  input{width:100%%;box-sizing:border-box;font:inherit;padding:.6rem .7rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
  input[name=code]{font:600 1.6rem ui-monospace,monospace;letter-spacing:.3em;text-transform:uppercase}
+ input[name=code]::placeholder{letter-spacing:.3em;opacity:.35}
  button{margin-top:1.25rem;width:100%%;font:600 1rem system-ui;padding:.75rem;border:0;border-radius:6px;background:var(--ink);color:var(--bg)}
- .msg{padding:.8rem 1rem;border-radius:8px;margin-bottom:1rem;border:1px solid var(--line)}
+ .msg{padding:.8rem 1rem;border-radius:8px;margin-bottom:1rem;border:1px solid var(--line);background:var(--card)}
  .ok{color:var(--ok)} .bad{color:var(--bad)}
+ .done{text-align:center} .done .tick{font-size:3rem;line-height:1;color:var(--ok)}
+ .done h2{margin:.5rem 0 .25rem;font-size:1.3rem} .done p{margin:0 0 1rem}
+ a{color:var(--ink)}
+ .hint{font-size:.9rem;margin:.4rem 0 0}
 </style></head><body><main>
 <h1>Connect a reader</h1>
-<p>to <b>%(name)s</b>. On your reader, choose <i>Connect a book server</i>; it shows a code.</p>
-%(msg)s
-<form method="post" action="/connect">
- <label for="code">Code on the reader</label>
- <input id="code" name="code" value="%(code)s" maxlength="7" autocomplete="off" autocapitalize="characters" required>
- <label for="pw">Server password</label>
- <input id="pw" name="password" type="password" autocomplete="current-password" required>
- <button type="submit">Connect</button>
-</form>
+<p>to <b>%(name)s</b></p>
+%(body)s
 </main></body></html>"""
+
+CONNECT_FORM = """%(msg)s%(waiting)s<form class="card" method="post" action="/connect">
+ <label for="code">Code on the reader</label>
+ <input id="code" name="code" value="%(code)s" maxlength="7" placeholder="ABC DEF" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" required%(code_focus)s>
+ <p class="hint">On the reader: <i>Bookbridge &gt; Connect a book server</i> shows it.</p>
+ <label for="pw">Server password</label>
+ <input id="pw" name="password" type="password" autocomplete="current-password" required%(pw_focus)s>
+ <p class="hint">The one the install printed (also <code>BB_PASSWORD</code> in the server's <code>.env</code>).</p>
+ <button type="submit">Connect</button>
+</form>"""
+
+CONNECT_DONE = """<div class="card done">
+ <div class="tick">&#10003;</div>
+ <h2>%(device)s is connected</h2>
+ <p>Look at the reader: it signs itself in within a few seconds. You can close this page.</p>
+ <a href="/connect">Connect another reader</a>
+</div>"""
 
 
 def connect_page(code="", msg="", ok=None):
-    box = ""
-    if msg:
-        box = '<div class="msg %s">%s</div>' % ("ok" if ok else "bad", html.escape(msg))
-    return (CONNECT_PAGE % {"name": html.escape(SERVER_NAME), "msg": box,
-                            "code": html.escape(code)}).encode()
+    if ok:
+        body = CONNECT_DONE % {"device": html.escape(msg)}
+    else:
+        box = '<div class="msg bad">%s</div>' % html.escape(msg) if msg else ""
+        pending = connect_pending(code) if code else None
+        waiting = ""
+        if pending:
+            waiting = ('<div class="msg">Waiting: <b>%s</b> at %s. Check the code below is the one on '
+                       'that reader\'s screen.</div>' % (html.escape(pending[0]), html.escape(pending[1])))
+        body = CONNECT_FORM % {
+            "msg": box, "waiting": waiting, "code": html.escape(code),
+            # (a code from the reader's QR is filled in: start at the password)
+            "code_focus": "" if code else " autofocus",
+            "pw_focus": " autofocus" if code else "",
+        }
+    return (CONNECT_PAGE % {"name": html.escape(SERVER_NAME), "body": body}).encode()
 
 
 def _purge_expired() -> None:
@@ -239,8 +287,14 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _content_length(self):
+        try:
+            return int(self.headers.get("Content-Length", 0) or 0)
+        except ValueError:
+            return -1
+
     def _read_body(self, limit=4096):
-        length = int(self.headers.get("Content-Length", 0) or 0)
+        length = self._content_length()
         if length <= 0 or length > limit:
             return b""
         return self.rfile.read(length)
@@ -257,11 +311,11 @@ class Handler(BaseHTTPRequestHandler):
             device = re.sub(r"[^A-Za-z0-9 ._'-]", "", str(data.get("device", "")))[:40]
             # the address the reader used to reach this server (it has to
             # reach every other service the same way)
-            host = str(data.get("host", "")) or (self.headers.get("Host", "").split(":")[0])
+            host = str(data.get("host", ""))
             if not re.match(r"^[A-Za-z0-9.-]{1,253}$", host):
                 self._send_json(400, {"error": "bad host"})
                 return
-            made = connect_hello(device, host)
+            made = connect_hello(device, host, self.client_address[0])
             if not made:
                 self._send_json(429, {"error": "too many readers waiting"})
                 return
@@ -271,16 +325,13 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/connect":
             form = parse_qs(self._read_body().decode("utf-8", "replace"))
             code = (form.get("code") or [""])[0]
-            ok, msg = connect_approve(code, (form.get("password") or [""])[0])
-            if ok:
-                msg = "Connected %s. It finishes on its own in a few seconds." % msg
-            self._send_html(200 if ok else 400, connect_page("" if ok else code, msg, ok))
+            ok, msg = connect_approve(code, (form.get("password") or [""])[0], self.client_address[0])
+            self._send_html(200 if ok else 400, connect_page(code, msg, ok))
             return
         if self.path != "/pair":
             self._send_json(404, {"error": "not found"})
             return
-        length = int(self.headers.get("Content-Length", 0))
-        raw = self.rfile.read(length) if length else b""
+        raw = self._read_body(limit=64 * 1024)
         try:
             data = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
@@ -312,7 +363,7 @@ class Handler(BaseHTTPRequestHandler):
         if not LOG_DIR:
             self._send_json(404, {"error": "not found"})
             return
-        length = int(self.headers.get("Content-Length", 0))
+        length = self._content_length()
         if length <= 0:
             self._send_json(400, {"error": "empty"})
             return

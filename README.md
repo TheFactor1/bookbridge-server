@@ -6,7 +6,9 @@ Everything the [Bookbridge KOReader plugin](https://github.com/TheFactor1/koread
 talks to: search and
 request books from your reader, and keep your library in sync with it.
 
-**You need a computer that stays on** -- Linux, a Mac, or Windows with WSL.
+**You need a computer that stays on** -- Linux, a Mac, or Windows with WSL
+(with WSL's [mirrored networking](https://learn.microsoft.com/windows/wsl/networking#mirrored-mode-networking)
+on, so readers can reach it).
 That is the one thing this can't do for you.
 
 ## Install
@@ -66,7 +68,11 @@ Everything lives in `~/bookbridge-server`; the passwords are in its `.env`.
 - **Turn a feature on or off:** edit `COMPOSE_PROFILES` in `.env` (see the
   table), then run the install command again.
 - **Stop it:** `cd ~/bookbridge-server && docker compose down`
-  (your books and settings stay; `up -d` brings it back).
+  (your books and settings stay; `up -d` brings it back). Just installed
+  Docker? Until you log in again, put `sudo` in front.
+- **Set up with the old setup wizard?** Run the install command with your
+  folder: `curl -fsSL .../install.sh | BOOKBRIDGE_DIR=/path/to/bookbridge-server sh`.
+  It keeps what you have and adds the server password and connecting by code.
 
 | Profile    | Adds                          | What the reader gains                                  | Needs                                             |
 |------------|-------------------------------|--------------------------------------------------------|---------------------------------------------------|
@@ -106,9 +112,9 @@ fixes left unreleased.
 | shelfmark-ai-relay      | 8089                |
 | shelfmark-pairing-relay | 8086                |
 
-Taken already? Set `SHELFMARK_PORT=9084 sh install.sh` (and so on) the first
-time, or change it in `.env` later. If the machine has a firewall, the install
-prints the line that lets readers in.
+Taken already? Choose another the first time --
+`curl -fsSL .../install.sh | SHELFMARK_PORT=9084 sh` (and so on) -- or change
+it in `.env` later and run the install again.
 
 ## By hand
 

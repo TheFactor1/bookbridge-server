@@ -7,7 +7,9 @@ wizard. Run INSIDE the shelfmark container by install.sh:
 Uses Shelfmark's own code (settings files, user database, password hashing),
 so the result is exactly what its wizard and Settings would have made, and
 every value stays changeable in Shelfmark's Settings afterwards. Safe to run
-again: settings are merged, and an existing account is left alone.
+again: the search provider, the login method and the first-run flag are
+only set on a fresh install (BB_FRESH=yes), so a re-run never undoes a
+change made in Shelfmark's Settings; an existing account is left alone.
 """
 import os
 import sys
@@ -21,18 +23,18 @@ from shelfmark.core.user_db import UserDB, get_users_db_path  # noqa: E402
 user = os.environ.get("BB_USER", "").strip()
 password = os.environ.get("BB_PASS", "")
 hardcover = os.environ.get("BB_HARDCOVER", "").strip()
+fresh = os.environ.get("BB_FRESH", "yes") == "yes"
 if not user or not password:
     sys.exit("BB_USER and BB_PASS are required")
 
 # search: Hardcover when there is a key, otherwise Open Library (no key needed)
-general = {"onboarding_complete": True}
-if hardcover:
-    general["METADATA_PROVIDER"] = "hardcover"
-    save_config_file("hardcover", {"HARDCOVER_ENABLED": True, "HARDCOVER_API_KEY": hardcover})
-else:
-    general["METADATA_PROVIDER"] = "openlibrary"
-    save_config_file("openlibrary", {"OPENLIBRARY_ENABLED": True})
-save_config_file("general", general)
+provider = "hardcover" if hardcover else "openlibrary"
+if fresh:
+    if hardcover:
+        save_config_file("hardcover", {"HARDCOVER_ENABLED": True, "HARDCOVER_API_KEY": hardcover})
+    else:
+        save_config_file("openlibrary", {"OPENLIBRARY_ENABLED": True})
+    save_config_file("general", {"onboarding_complete": True, "METADATA_PROVIDER": provider})
 
 # logins: Shelfmark's own accounts ("Local"); it stays off until an admin exists
 db = UserDB(get_users_db_path())
@@ -43,5 +45,8 @@ if existing:
 else:
     db.create_user(username=user, password_hash=generate_password_hash(password), role="admin")
     print("made admin account %s" % user)
-save_config_file("security", {"AUTH_METHOD": "builtin"})
-print("shelfmark set up: search via %s, Local logins" % general["METADATA_PROVIDER"])
+if fresh:
+    save_config_file("security", {"AUTH_METHOD": "builtin"})
+    print("shelfmark set up: search via %s, Local logins" % provider)
+else:
+    print("shelfmark settings left as they are")

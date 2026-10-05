@@ -15,18 +15,21 @@
 #   BOOKBRIDGE_DIR   where to put it              (default ~/bookbridge-server)
 #   BB_FEATURES      sync,annas                   (default: ask; sync if no terminal)
 #   BB_HARDCOVER     a Hardcover API key          (default: ask; none)
-#   BB_PROJECT       docker compose project name  (default shelfmark)
+#   BB_PROJECT       docker compose project name  (default shelfmark, or
+#                    bookbridge when another "shelfmark" project exists)
 #   BB_SOURCE        a local copy to install from instead of downloading
-#   SHELFMARK_PORT CWA_PORT PAIRING_PORT ANNAS_API_PORT   other ports
+#   SHELFMARK_PORT CWA_PORT PAIRING_PORT ANNAS_API_PORT AI_RELAY_PORT   ports
 set -eu
 
 say() { printf '%s\n' "$*"; }
 die() { printf '\nStopped: %s\n' "$*" >&2; exit 1; }
 
 DIR=${BOOKBRIDGE_DIR:-$HOME/bookbridge-server}
-PROJECT=${BB_PROJECT:-shelfmark}
 REPO=https://github.com/TheFactor1/bookbridge-server
-TTY=no; [ -t 0 ] || [ -r /dev/tty ] && TTY=yes
+# A terminal to ask on, even when the script itself arrives on stdin. (Over
+# ssh without -t, in CI or cron there is none: the defaults are used.)
+TTY=no
+if (: < /dev/tty) 2>/dev/null; then TTY=yes; fi
 ask() {  # ask "question" default -> answer (from the terminal even when piped)
     if [ "$TTY" = yes ] && [ -r /dev/tty ]; then
         printf '%s [%s] ' "$1" "$2" > /dev/tty
@@ -89,6 +92,7 @@ cd "$DIR"
 [ -f docker-compose.yml ] || die "The download didn't give a docker-compose.yml in $DIR."
 
 # ---- .env: kept if it's there, written if not ----------------------------------
+umask 077   # (.env holds every password)
 rand() { LC_ALL=C tr -dc 'abcdefghjkmnpqrstuvwxyz23456789' < /dev/urandom | head -c "$1"; }
 setenv() {  # setenv KEY VALUE: set in .env, replacing an existing line
     if grep -q "^$1=" .env 2>/dev/null; then
@@ -97,18 +101,18 @@ setenv() {  # setenv KEY VALUE: set in .env, replacing an existing line
     printf '%s=%s\n' "$1" "$2" >> .env
 }
 getenv() { sed -n "s/^$1=//p" .env 2>/dev/null | tail -1; }
+setdefault() {  # setdefault KEY VALUE: only when the key is empty or missing
+    [ -n "$(getenv "$1")" ] || setenv "$1" "$2"
+}
 
-if [ ! -f .env ]; then
-    [ -f .env.example ] && cp .env.example .env || : > .env
-    FRESH=yes
-else
-    FRESH=no
-    say "Keeping your settings in $DIR/.env"
-fi
-
+# Fresh means no server password yet: no .env, one made by hand from
+# .env.example, or a first run that stopped half way. Anything already set
+# in .env is kept.
+FRESH=no
+[ -n "$(getenv BB_PASSWORD)" ] || FRESH=yes
 if [ "$FRESH" = yes ]; then
-    features=${BB_FEATURES:-}
-    if [ -z "$features" ]; then
+    features=${BB_FEATURES-}
+    if [ -z "${BB_FEATURES+x}" ] && [ -z "$(getenv COMPOSE_PROFILES)" ]; then
         sync=$(ask "Keep your library in sync with the reader (Calibre-Web)? y/n" "y")
         annas=$(ask "Use Anna's Archive as a source (needs your own account key)? y/n" "n")
         features=""
@@ -116,26 +120,45 @@ if [ "$FRESH" = yes ]; then
         case "$annas" in [Yy]*) features="${features:+$features,}annas" ;; esac
     fi
     hardcover=${BB_HARDCOVER-}
-    [ -z "${BB_HARDCOVER+x}" ] && hardcover=$(ask "Hardcover API key (hardcover.app/account/api), or Enter to skip" "")
+    [ -z "${BB_HARDCOVER+x}" ] && [ -z "$(getenv HARDCOVER_TOKEN)" ] && hardcover=$(ask "Hardcover API key (hardcover.app/account/api), or Enter to skip" "")
+    # (only now, with every answer in: a stop above leaves nothing half done)
+    [ -f .env ] || { [ -f .env.example ] && cp .env.example .env || : > .env; }
     password=$(rand 4)-$(rand 4)-$(rand 4)
-    setenv COMPOSE_PROFILES "$features"
-    setenv PUID "$(id -u)"
-    setenv PGID "$(id -g)"
+    [ -n "$features" ] && setdefault COMPOSE_PROFILES "$features"
+    setdefault PUID "$(id -u)"
+    setdefault PGID "$(id -g)"
     tz=$(cat /etc/timezone 2>/dev/null || readlink /etc/localtime 2>/dev/null | sed 's|.*/zoneinfo/||' || echo UTC)
-    setenv TZ "${tz:-UTC}"
-    setenv HARDCOVER_TOKEN "$hardcover"
-    setenv SERVER_NAME "$(hostname 2>/dev/null || echo bookbridge)"
+    setdefault TZ "${tz:-UTC}"
+    [ -n "$hardcover" ] && setdefault HARDCOVER_TOKEN "$hardcover"
+    setdefault SERVER_NAME "$(hostname 2>/dev/null || echo bookbridge)"
     setenv BB_PASSWORD "$password"
-    setenv SHELFMARK_USERNAME "reader"
-    setenv SHELFMARK_PASSWORD "$password"
+    setdefault SHELFMARK_USERNAME "reader"
+    setdefault SHELFMARK_PASSWORD "$password"
     # Calibre-Web gets the same login (set below, in place of admin/admin123)
-    setenv CWA_USERNAME "reader"
-    setenv CWA_PASSWORD "$password"
-    case ",$features," in *,sync,*) setenv CALIBRE_LIBRARY "$DIR/calibre-library" ;; esac
+    [ "$(getenv CWA_PASSWORD)" = admin123 ] && setenv CWA_PASSWORD "" && setenv CWA_USERNAME ""
+    setdefault CWA_USERNAME "reader"
+    setdefault CWA_PASSWORD "$password"
+    case ",$(getenv COMPOSE_PROFILES)," in *,sync,*) setdefault CALIBRE_LIBRARY "$DIR/calibre-library" ;; esac
+else
+    say "Keeping your settings in $DIR/.env"
 fi
-for p in SHELFMARK_PORT CWA_PORT PAIRING_PORT ANNAS_API_PORT; do
+chmod 600 .env
+for p in SHELFMARK_PORT CWA_PORT PAIRING_PORT ANNAS_API_PORT AI_RELAY_PORT; do
     eval "v=\${$p:-}"; [ -n "$v" ] && setenv "$p" "$v"
 done
+# the AI relay refuses everything without a token: make one when it's on
+case ",$(getenv COMPOSE_PROFILES)," in *,ai-local,*|*,ai-cloud,*) setdefault RELAY_TOKEN "$(rand 32)" ;; esac
+
+# The compose project: kept in .env, so plain `docker compose ...` in this
+# folder finds it. "shelfmark" unless another "shelfmark" (an existing
+# Shelfmark install, say) lives somewhere else -- never take that one over.
+PROJECT=${BB_PROJECT:-$(getenv COMPOSE_PROJECT_NAME)}
+if [ -z "$PROJECT" ]; then
+    PROJECT=shelfmark
+    other=$($DOCKER compose ls -a --filter name=shelfmark --format json 2>/dev/null | tr '{' '\n' | grep '"Name":"shelfmark"' || true)
+    if [ -n "$other" ] && ! printf '%s' "$other" | grep -q "$DIR/"; then PROJECT=bookbridge; fi
+fi
+setenv COMPOSE_PROJECT_NAME "$PROJECT"
 
 # ---- start ---------------------------------------------------------------------
 say "Starting (the first time downloads a few hundred MB)..."
@@ -152,7 +175,8 @@ until compose exec -T shelfmark test -f /config/users.db 2>/dev/null; do
     sleep 2
 done
 compose exec -T -e BB_USER="$(getenv SHELFMARK_USERNAME)" -e BB_PASS="$(getenv SHELFMARK_PASSWORD)" \
-    -e BB_HARDCOVER="$(getenv HARDCOVER_TOKEN)" shelfmark python3 - < setup/seed_shelfmark.py > .seed.log 2>&1 \
+    -e BB_HARDCOVER="$(getenv HARDCOVER_TOKEN)" -e BB_FRESH="$FRESH" \
+    shelfmark python3 - < setup/seed_shelfmark.py > .seed.log 2>&1 \
     || { cat .seed.log; die "Couldn't set up Shelfmark."; }
 grep -v ' - INFO - ' .seed.log | sed 's/^/  /'; rm -f .seed.log
 compose restart shelfmark >/dev/null 2>&1
@@ -197,10 +221,11 @@ say " In a browser (log in as $(getenv SHELFMARK_USERNAME), same password):"
 say "   Shelfmark      http://${lan:-<this machine>}:$sm_port"
 cwa_port=$(getenv CWA_PORT); cwa_port=${cwa_port:-8083}
 [ "$cwa_on" = yes ] && say "   Calibre-Web    http://${lan:-<this machine>}:$cwa_port"
-if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
-    say ""
-    say " This machine has a firewall (ufw) on. Let readers in with:"
-    say "   sudo ufw allow $pair_port,$sm_port,$cwa_port/tcp"
-fi
 say ""
 say " Everything is in $DIR (passwords in .env). Run this again to update."
+case "$(uname -r 2>/dev/null)" in *[Mm]icrosoft*)
+    say ""
+    say " Windows (WSL): readers reach this only with WSL's mirrored networking"
+    say " on (https://learn.microsoft.com/windows/wsl/networking#mirrored-mode-networking)."
+    say " Then the address above is your PC's; check it with ipconfig in Windows." ;;
+esac

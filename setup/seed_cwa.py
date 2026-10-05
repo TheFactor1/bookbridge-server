@@ -29,4 +29,5 @@ elif name == "admin" and check_password_hash(pw_hash or "", "admin123"):
     db.commit()
     print("Calibre-Web: login set")
 else:
-    print("Calibre-Web: login was changed by hand; leaving it")
+    print("Calibre-Web: login was changed by hand; leaving it. Put that login in .env "
+          "(CWA_USERNAME, CWA_PASSWORD) so newly connected readers get it.")
