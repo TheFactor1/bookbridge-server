@@ -189,6 +189,13 @@ feed setup/seed_shelfmark.py exec -T -e BB_USER="$(getenv SHELFMARK_USERNAME)" -
     || { cat .seed.log; die "Couldn't set up Shelfmark."; }
 grep -v ' - INFO - ' .seed.log | sed 's/^/  /'; rm -f .seed.log
 compose restart shelfmark >/dev/null 2>&1
+# (back up before the reader is told to connect)
+sm_port=$(getenv SHELFMARK_PORT); sm_port=${sm_port:-8084}
+i=0
+command -v curl >/dev/null 2>&1 && until curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$sm_port/" < /dev/null; do
+    i=$((i + 1)); [ $i -gt 30 ] && break
+    sleep 2
+done
 
 # ---- set up Calibre-Web (library sync) ------------------------------------------
 cwa_on=no
@@ -212,7 +219,6 @@ lan=$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | 
 [ -n "$lan" ] || lan=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)
 ts=$(tailscale ip -4 2>/dev/null | head -1 || true)
 pair_port=$(getenv PAIRING_PORT); pair_port=${pair_port:-8086}
-sm_port=$(getenv SHELFMARK_PORT); sm_port=${sm_port:-8084}
 
 say ""
 say "========================================================"
